@@ -56,8 +56,8 @@ fn main() {
                     if db.contains_key(&block.nonce) {
                         return rouille::Response::text("Block already exists").with_status_code(400);
                     }
-
-                    if let Err(err) = block.is_block_valid(DIFFICULTY) {
+                    let difficulty = args.difficulty;
+                    if let Err(err) = block.is_block_valid(difficulty) {
                         return rouille::Response::text(format!("Invalid block: {}", err)).with_status_code(400);
                     }
                     

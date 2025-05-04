@@ -5,16 +5,15 @@ use block::DIFFICULTY;
 use clap::{Parser, Subcommand};
 use network::NetworkConnector;
 use rand::RngCore;
+use rand::Rng;
 use simpletree::TreeNode;
 use std::fmt;
 use std::sync::mpsc;
 use std::sync::mpsc::TryRecvError;
 use std::thread;
 use rand::thread_rng;
-use rand::SeedableRng;
-use rand::rngs::StdRng;
 
-const MY_NAME: &str = "your_miner_name"; // Change this to your unique miner name
+const MY_NAME: &str = "changemeyoufool"; // Change this to your unique miner name
 
 #[derive(Default, Debug)]
 struct Blockchain {
@@ -35,49 +34,82 @@ impl Blockchain {
     /// Creates a new Blockchain from the provided genesis
 /// block and vector of valid blocks.
     /// Creates a new Blockchain from the provided genesis
-/// block and vector of valid blocks.
+    /// block and vector of valid blocks.
     pub fn new_from_genesis_and_vec(
         genesis: Block,
         blocks: Vec<Block>,
     ) -> (Self, Vec<Block>) {
+        // println!("DEBUG: Starting new_from_genesis_and_vec");
+        // println!("DEBUG: Genesis block nonce: {}, miner: {}", genesis.nonce, genesis.miner);
+        // println!("DEBUG: Number of blocks to process: {}", blocks.len());
+        
+        // Create a blockchain with just the genesis block
         let mut blockchain = Self::new_from_genesis(genesis);
-        let mut remaining_blocks = Vec::new();
+        
+        // Keep track of which blocks we've processed by nonce
         let mut processed_blocks = BlockHashSet::default();
         
-        // Process blocks and add them to the tree
-        let mut blocks_to_process: Vec<Block> = blocks;
+        // Add the genesis block to the processed set
+        processed_blocks.insert(blockchain.blocks.value().nonce);
+        // println!("DEBUG: Added genesis block to processed_blocks");
         
-        // Keep trying to add blocks until we can't add any more
+        // Create a copy of blocks to process
+        let mut blocks_to_process = blocks;
+        
+        // Print information about blocks to process
+        // for (i, block) in blocks_to_process.iter().enumerate() {
+        //     println!("DEBUG: Block {}: nonce={}, miner={}, parent_hash={:?}", 
+        //         i, block.nonce, block.miner, block.parent_hash);
+        // }
+        
+        // Keep going until we can't add any more blocks
         let mut progress_made = true;
+        let mut _iteration = 0;
+        
         while progress_made && !blocks_to_process.is_empty() {
+            _iteration += 1;
+            // println!("DEBUG: Iteration {}, blocks to process: {}", _iteration, blocks_to_process.len());
             progress_made = false;
             let mut still_to_process = Vec::new();
             
             for block in blocks_to_process {
-                // Skip blocks that have already been processed
+                // Skip if we've already processed a block with this nonce
                 if processed_blocks.contains(&block.nonce) {
+                    // println!("DEBUG: Skipping block with nonce {} (already processed)", block.nonce);
                     continue;
                 }
                 
-                // Check if this block connects to our tree
-                if let Some(parent_node) = blockchain.blocks.look_for_parent(&block.parent_hash) {
-                    // Add the block as a child of its parent
-                    parent_node.insert(block.clone());
-                    // Mark this block as processed
+                // Find the parent for this block
+                if blockchain.blocks.find_and_insert(&block, &mut processed_blocks) {
+                    // println!("DEBUG: Added block with nonce {} to tree", block.nonce);
                     processed_blocks.insert(block.nonce);
                     progress_made = true;
                 } else {
-                    // Keep track of blocks we couldn't add yet
+                    // println!("DEBUG: Could not find parent for block with nonce {}", block.nonce);
                     still_to_process.push(block);
                 }
             }
             
+            // Update blocks to process for next iteration
             blocks_to_process = still_to_process;
+            // println!("DEBUG: End of iteration {}, remaining blocks: {}", iteration, blocks_to_process.len());
         }
         
-        // Any blocks remaining in blocks_to_process are orphaned
-        remaining_blocks = blocks_to_process;
+        // Any blocks we couldn't process are returned as orphaned
+        let remaining_blocks = blocks_to_process;
         
+        // Print final tree structure
+        // println!("DEBUG: Final tree structure:");
+        // println!("DEBUG: Root has {} children", blockchain.blocks.children().len());
+        // for (i, child) in blockchain.blocks.children().iter().enumerate() {
+        //     println!("DEBUG: Root child {}: nonce={}, miner={}", i, child.value().nonce, child.value().miner);
+        //     for (j, grandchild) in child.children().iter().enumerate() {
+        //         println!("DEBUG: Grandchild {}.{}: nonce={}, miner={}", 
+        //             i, j, grandchild.value().nonce, grandchild.value().miner);
+        //     }
+        // }
+        
+        // println!("DEBUG: Returning {} remaining blocks", remaining_blocks.len());
         (blockchain, remaining_blocks)
     }
     
@@ -172,7 +204,7 @@ enum Commands {
     },
 }
 
-fn mine() {
+fn mine(difficulty: u32, miner_name: String, max_iter: Option<u64>) {
     // use message passing to communicate between the thread querying the server
     // and sending any new block as a vector of blocks
     let (tx1, rx1) = mpsc::sync_channel(1);
@@ -188,8 +220,8 @@ fn mine() {
     // Main mining loop
     let mut blockchain = None;
     let mut rng = thread_rng();
-    let difficulty = DIFFICULTY;
-    let miner_name = MY_NAME.to_string();
+    // let difficulty = DIFFICULTY;
+    // let miner_name = MY_NAME.to_string();
     
     println!("Starting mining with miner name: {}", miner_name);
     println!("Difficulty: {}", difficulty);
@@ -315,7 +347,7 @@ fn main() {
             miner_name,
             max_iter,
         }) => {
-            mine();
+            mine(*difficulty, miner_name.clone(), *max_iter);
         }
 
         Some(Commands::Print { difficulty }) => {
@@ -406,17 +438,13 @@ mod tests {
 
     #[test]
     fn test_orphaned_blocks() {
-        // Create a genesis block
         let genesis = create_test_block(&[], 0, "Genesis");
-        // Create a fake hash that doesn't match any block
         let fake_hash = vec![0xFF; 32]; 
 
-        // Create one valid block that connects to genesis
         let valid_block = create_test_block(&genesis.hash_block().to_vec(), 42, "miner1");
-        // Create an orphan block with an invalid parent hash
+        
         let orphan_block = create_test_block(&fake_hash, 43, "miner2");
 
-        // Build the blockchain with genesis and both blocks
         let (blockchain, remaining) = Blockchain::new_from_genesis_and_vec(
             genesis.clone(),
             vec![valid_block.clone(), orphan_block.clone()],
@@ -435,21 +463,28 @@ mod tests {
 
     #[test]
     fn test_duplicate_valid_blocks() {
+        // println!("TEST: Starting test_duplicate_valid_blocks");
         // Create a genesis block
         let genesis = create_test_block(&[], 0, "Genesis");
         let genesis_hash = genesis.hash_block().to_vec();
+        // println!("TEST: Genesis hash: {:?}", genesis_hash);
 
         // Create first block off genesis
         let block1 = create_test_block(&genesis_hash, 42, "miner1");
         let block1_hash = block1.hash_block().to_vec();
+        // println!("TEST: Block1 hash: {:?}", block1_hash);
 
         // Create another block off genesis
         let block2 = create_test_block(&genesis_hash, 43, "miner2");
+        // println!("TEST: Block2 hash: {:?}", block2.hash_block().to_vec());
         
         // Create a block off block1
         let block3 = create_test_block(&block1_hash, 44, "miner3");
+        // println!("TEST: Block3 hash: {:?}", block3.hash_block().to_vec());
+        // println!("TEST: Block3 parent hash: {:?}", block3.parent_hash);
 
         // Build the blockchain including duplicates of the blocks
+        // println!("TEST: Building blockchain with blocks");
         let (blockchain, remaining) = Blockchain::new_from_genesis_and_vec(
             genesis.clone(),
             vec![
@@ -464,6 +499,15 @@ mod tests {
 
         // Verify structure of the blockchain
         let root = &blockchain.blocks;
+        // println!("TEST: Root children count: {}", root.children().len());
+        
+        // // Print the children of the root
+        // for (i, child) in root.children().iter().enumerate() {
+        //     println!("TEST: Root child {}: nonce={}, miner={}", i, child.value().nonce, child.value().miner);
+        //     for (j, grandchild) in child.children().iter().enumerate() {
+        //         println!("TEST: Grandchild {}.{}: nonce={}, miner={}", i, j, grandchild.value().nonce, grandchild.value().miner);
+        //     }
+        // }
         
         // Should have 2 children from genesis (block1 and block2)
         assert_eq!(root.children().len(), 2);
@@ -475,12 +519,18 @@ mod tests {
             .find(|n| n.value().nonce == 42)
             .unwrap();
         
+        // println!("TEST: Block1 node children count: {}", block1_node.children().len());
+        
         // Verify block1 has block3 as a child
         assert_eq!(block1_node.children().len(), 1);
         assert_eq!(block1_node.children()[0].value().nonce, 44);
         assert_eq!(block1_node.children()[0].value().miner, "miner3");
         
         // Verify no blocks remain unprocessed
+        // println!("TEST: Remaining blocks count: {}", remaining.len());
+        // for (i, block) in remaining.iter().enumerate() {
+        //     println!("TEST: Remaining block {}: nonce={}, miner={}", i, block.nonce, block.miner);
+        // }
         assert_eq!(remaining.len(), 0);
     }
 

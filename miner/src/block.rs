@@ -183,20 +183,32 @@ impl Block {
 
 impl crate::simpletree::Parenting for Block {
     fn is_parent(&self, parent_id: &[u8]) -> bool {
-        // Comparing the hash of this block with the parent_id
+        // Check if this block's hash matches the parent_id (which is the parent hash of another block)
         let self_hash = self.hash_block();
         if parent_id.len() != self_hash.len() {
             return false;
         }
         
-        // Comparing each byte
-        for (i, &byte) in self.parent_hash.iter().enumerate() {
+        // Compare each byte of this block's hash with the parent_id
+        for (i, &byte) in self_hash.iter().enumerate() {
             if byte != parent_id[i] {
                 return false;
             }
         }
         
         true
+    }
+    
+    fn parent_hash(&self) -> &[u8] {
+        &self.parent_hash
+    }
+    
+    fn hash(&self) -> Vec<u8> {
+        self.hash_block().to_vec()
+    }
+    
+    fn nonce(&self) -> u64 {
+        self.nonce
     }
 }
 

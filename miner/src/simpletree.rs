@@ -1,5 +1,8 @@
 pub trait Parenting {
     fn is_parent(&self, parent_id: &[u8]) -> bool;
+    fn parent_hash(&self) -> &[u8];
+    fn hash(&self) -> Vec<u8>;
+    fn nonce(&self) -> u64;
 }
 
 #[derive(Debug, Default)]
@@ -59,6 +62,32 @@ impl<T: Default + Parenting> TreeNode<T> {
         }
         None
     }
+    
+    /// Finds the correct parent node for the given block and inserts it
+    /// Returns true if the block was inserted, false otherwise
+    pub fn find_and_insert<H>(&mut self, block: &T, _processed_blocks: &mut H) -> bool 
+    where T: Clone {
+        // First check if this node is the parent
+        let parent_hash = block.parent_hash();
+        let self_hash = self.value.hash();
+        
+        // If this node's hash matches the block's parent_hash, insert the block here
+        if parent_hash.len() == self_hash.len() && 
+           parent_hash.iter().zip(self_hash.iter()).all(|(a, b)| a == b) {
+            // println!("DEBUG: Found exact parent match for block with hash {:?}", block.hash());
+            self.insert(block.clone());
+            return true;
+        }
+        
+        // Otherwise, recursively check children
+        for child in &mut self.children {
+            if child.find_and_insert(block, _processed_blocks) {
+                return true;
+            }
+        }
+        
+        false
+    }
 
     /// Get the value of the node
     pub fn value(&self) -> &T {
@@ -96,6 +125,18 @@ mod tests {
     impl Parenting for Data {
         fn is_parent(&self, parent_id: &[u8]) -> bool {
             self.val as u8 == parent_id[0]
+        }
+        
+        fn parent_hash(&self) -> &[u8] {
+            &self.parent_id
+        }
+        
+        fn hash(&self) -> Vec<u8> {
+            vec![self.val as u8]
+        }
+        
+        fn nonce(&self) -> u64 {
+            self.val as u64
         }
     }
 
