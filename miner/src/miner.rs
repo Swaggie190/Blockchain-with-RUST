@@ -3,17 +3,14 @@ use block::BlockHashSet;
 use block::DanceMove;
 use block::DIFFICULTY;
 use clap::{Parser, Subcommand};
-use network::NetworkConnector;
+use rand::thread_rng; // Used in mining logic
 use rand::RngCore;
-use rand::Rng;
-use simpletree::TreeNode;
+use crate::simpletree::TreeNode;
 use std::fmt;
+use crate::network::NetworkConnector;
 use std::sync::mpsc;
 use std::sync::mpsc::TryRecvError;
 use std::thread;
-use rand::thread_rng;
-
-const MY_NAME: &str = "changemeyoufool"; // Change this to your unique miner name
 
 #[derive(Default, Debug)]
 struct Blockchain {
@@ -181,6 +178,8 @@ impl fmt::Display for Blockchain {
     }
 }
 
+const MY_NAME: &str = "changemeyoufool";
+
 #[derive(Parser)]
 #[command(version, about)]
 struct Args {
@@ -204,7 +203,7 @@ enum Commands {
     },
 }
 
-fn mine(difficulty: u32, miner_name: String, max_iter: Option<u64>) {
+fn mine(difficulty: u32, miner_name: String, _max_iter: Option<u64>) {
     // use message passing to communicate between the thread querying the server
     // and sending any new block as a vector of blocks
     let (tx1, rx1) = mpsc::sync_channel(1);

@@ -1,7 +1,9 @@
 pub trait Parenting {
+    #[allow(dead_code)]
     fn is_parent(&self, parent_id: &[u8]) -> bool;
     fn parent_hash(&self) -> &[u8];
     fn hash(&self) -> Vec<u8>;
+    #[allow(dead_code)]
     fn nonce(&self) -> u64;
 }
 
@@ -38,6 +40,7 @@ impl<T: Default + Parenting> TreeNode<T> {
     }
 
     /// Calculate the depth of the tree from this node
+    #[allow(dead_code)]
     pub fn depth(&self) -> usize {
         let mut max_depth = 0;
         for child in &self.children {
@@ -50,6 +53,7 @@ impl<T: Default + Parenting> TreeNode<T> {
     }
 
     /// Perform a depth-first search looking for the parent
+    #[allow(dead_code)]
     pub fn look_for_parent(&mut self, parent_id: &[u8]) -> Option<&mut TreeNode<T>> {
         if self.value.is_parent(parent_id) {
             return Some(self);

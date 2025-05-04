@@ -149,6 +149,7 @@ impl Block {
         true
     }
 
+    #[allow(dead_code)]
     pub fn is_block_valid(&self, difficulty: u32) -> Result<(), &'static str> {
         // Checking if miner name is valid
         if self.miner == "changemeyoufool" || (self.miner == "Genesis" && !self.parent_hash.is_empty()) {
