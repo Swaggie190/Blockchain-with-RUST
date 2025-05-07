@@ -27,7 +27,7 @@ This project implements a basic blockchain system with proof-of-work mining. It 
 
 1. Clone the repository:
    ```
-   git clone <repository-url>
+   git clone https://github.com/Swaggie190/Blockchain-with-RUST
    cd project2025
    ```
 
